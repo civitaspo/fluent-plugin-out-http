@@ -13,7 +13,7 @@ class Fluent::HTTPOutput < Fluent::Output
 
   # HTTP method
   config_param :http_method, :string, :default => :post
-  
+
   # form | json
   config_param :serializer, :string, :default => :form
 
@@ -25,9 +25,14 @@ class Fluent::HTTPOutput < Fluent::Output
   config_param :raise_on_error, :bool, :default => true
 
   # nil | 'none' | 'basic'
-  config_param :authentication, :string, :default => nil 
+  config_param :authentication, :string, :default => nil
   config_param :username, :string, :default => ''
   config_param :password, :string, :default => ''
+
+  # Define `log` method for v0.10.42 or earlier
+  unless method_defined?(:log)
+    define_method("log") { log }
+  end
 
   def configure(conf)
     super
@@ -92,13 +97,13 @@ class Fluent::HTTPOutput < Fluent::Output
     return req, uri
   end
 
-  def send_request(req, uri)    
+  def send_request(req, uri)
     is_rate_limited = (@rate_limit_msec != 0 and not @last_request_time.nil?)
     if is_rate_limited and ((Time.now.to_f - @last_request_time) * 1000.0 < @rate_limit_msec)
-      $log.info('Dropped request due to rate limiting')
+      log.info('Dropped request due to rate limiting')
       return
     end
-    
+
     res = nil
 
     begin
@@ -109,7 +114,7 @@ class Fluent::HTTPOutput < Fluent::Output
       res = Net::HTTP.new(uri.host, uri.port).start {|http| http.request(req) }
     rescue => e # rescue all StandardErrors
       # server didn't respond
-      $log.warn "Net::HTTP.#{req.method.capitalize} raises exception: #{e.class}, '#{e.message}'"
+      log.warn "Net::HTTP.#{req.method.capitalize} raises exception: #{e.class}, '#{e.message}'"
       raise e if @raise_on_error
     else
        unless res and res.is_a?(Net::HTTPSuccess)
@@ -118,7 +123,7 @@ class Fluent::HTTPOutput < Fluent::Output
                         else
                            "res=nil"
                         end
-          $log.warn "failed to #{req.method} #{uri} (#{res_summary})"
+          log.warn "failed to #{req.method} #{uri} (#{res_summary})"
        end #end unless
     end # end begin
   end # end send_request
